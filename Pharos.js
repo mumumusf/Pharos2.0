@@ -226,7 +226,11 @@ const performCheckIn = async (wallet, proxy = null) => {
 // 转账PHRS函数
 const transferPHRS = async (wallet, provider) => {
   try {
-    for (let i = 0; i < 10; i++) {
+    // 随机生成2-10之间的转账次数
+    const transferCount = Math.floor(Math.random() * 9) + 2;
+    logger.info(`本次将执行 ${transferCount} 次转账`);
+    
+    for (let i = 0; i < transferCount; i++) {
       const amount = 0.000001;
       const to = ethers.Wallet.createRandom().address;
       const balance = await provider.getBalance(wallet.address);
@@ -261,8 +265,8 @@ const transferPHRS = async (wallet, provider) => {
 const performSwap = async (wallet, provider) => {
   try {
     const pairs = [
-      { from: 'WPHRS', to: 'USDC', amount: 0.001 },
-      { from: 'USDC', to: 'WPHRS', amount: 0.1 },
+      { from: 'WPHRS', to: 'USDC', amount: 0.01 },
+      { from: 'USDC', to: 'WPHRS', amount: 0.01 },
     ];
     const contract = new ethers.Contract(contractAddress, multicallABI, wallet);
 
@@ -422,33 +426,42 @@ const executeWalletOperations = async (walletConfig) => {
 // 主函数
 const main = async () => {
   printBanner();
-
-  try {
-    // 获取所有钱包配置
-    const walletConfigs = await getWalletConfigs();
-    
-    if (walletConfigs.length === 0) {
-      logger.error('未输入任何钱包配置');
-      return;
-    }
-
-    logger.info(`共配置 ${walletConfigs.length} 个钱包`);
-
-    // 依次执行每个钱包的操作
-    for (let i = 0; i < walletConfigs.length; i++) {
-      logger.info(`\n开始执行第 ${i + 1}/${walletConfigs.length} 个钱包的操作`);
-      await executeWalletOperations(walletConfigs[i]);
-      if (i < walletConfigs.length - 1) {
-        logger.info('等待5秒后执行下一个钱包...');
-        await delay(5000);
+  
+  while (true) {
+    try {
+      const walletConfigs = await getWalletConfigs();
+      if (walletConfigs.length === 0) {
+        console.log('[!] 未配置任何钱包，程序退出');
+        return;
       }
+      
+      console.log(`[✓] 共配置 ${walletConfigs.length} 个钱包`);
+      console.log('[✓] \n');
+      
+      for (let i = 0; i < walletConfigs.length; i++) {
+        const config = walletConfigs[i];
+        console.log(`开始执行第 ${i + 1}/${walletConfigs.length} 个钱包的操作`);
+        
+        try {
+          await executeWalletOperations(config);
+        } catch (error) {
+          console.error(`[✗] 钱包 ${config.address} 执行失败:`, error.message);
+        }
+        
+        if (i < walletConfigs.length - 1) {
+          console.log('\n等待 30 秒后执行下一个钱包...\n');
+          await delay(30000);
+        }
+      }
+      
+      console.log('[+] 所有钱包操作执行完毕');
+      console.log('\n[✓] 等待 24 小时后重新执行...\n');
+      await delay(24 * 60 * 60 * 1000); // 24小时 = 24 * 60 * 60 * 1000 毫秒
+    } catch (error) {
+      console.error('[✗] 执行出错:', error.message);
+      console.log('\n[✓] 等待 24 小时后重试...\n');
+      await delay(24 * 60 * 60 * 1000);
     }
-
-    logger.success('所有钱包操作执行完毕');
-  } catch (err) {
-    logger.error(`脚本运行失败：${err.message}`);
-  } finally {
-    rl.close();
   }
 };
 
